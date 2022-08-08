@@ -8,11 +8,13 @@ import com.hcb.utils.SMSUtils;
 import com.hcb.utils.ValidateCodeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpSession;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @Slf4j
@@ -20,6 +22,9 @@ import java.util.Map;
 public class UserController {
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 发送手机验证码
@@ -33,8 +38,10 @@ public class UserController {
             String code = ValidateCodeUtils.generateValidateCode(4).toString();
             //调用阿里云提供的短信服务API 发送短信
             SMSUtils.sendMessage("何","",phone,code);
-            //需要将生成的验证码保存到Session中
-            session.setAttribute(phone,code);
+
+            //需要将生成的验证码保存到Redis中,设置有效期为5min
+            redisTemplate.opsForValue().set(phone,code,2, TimeUnit.MINUTES);
+
             return R.success("手机验证码发送成功");
         }
         return R.error("手机验证码发送失败");
@@ -53,6 +60,9 @@ public class UserController {
         //获取手机号
         String phone = user.get("phone").toString();
 
+        //从redis中获取验证码
+        Object code = redisTemplate.opsForValue().get(phone);
+
         //查询是否为新用户
         LambdaQueryWrapper<User> lqw = new LambdaQueryWrapper<>();
         lqw.eq(User::getPhone,phone);
@@ -69,6 +79,8 @@ public class UserController {
         //存入Session
         session.setAttribute("user",one.getId());
 
+        //登录成功，删除验证码】
+        redisTemplate.delete(phone);
 
         return R.success(one);
     }
