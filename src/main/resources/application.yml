@@ -9,11 +9,12 @@ spring:
     url: jdbc:mysql://localhost:3306/reggie
     username: root
     password:
+  #用本机的redis先测试，后期上线在用linux的
   redis:
-    host: 192.168.117.100
+    host: localhost
     port: 6379
     database: 0
-    password: 1111
+    #password: 1111
 mybatis-plus:
   configuration:
     #在映射实体或者属性时，将数据库中表名和字段名中的下划线去掉，按照驼峰命名法映射

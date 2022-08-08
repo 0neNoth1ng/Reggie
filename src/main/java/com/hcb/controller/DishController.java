@@ -14,11 +14,13 @@ import com.hcb.service.DishService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +39,9 @@ public class DishController {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 新增菜品，具体的代码写在了业务层里面，同时操作两张表，菜品表和口味表
@@ -141,6 +146,21 @@ public class DishController {
      */
     @GetMapping("/list")
     public R<List<DishDto>> get(Dish dish) {
+
+        List<DishDto> dishDtoList = null;
+
+        //动态生成key
+        String key = "dish_" + dish.getCategoryId() + "_" + dish.getStatus();
+
+        //先从Redis中获取缓存数据
+        dishDtoList = (List<DishDto>) redisTemplate.opsForValue().get(key);
+
+        if (dishDtoList != null) {
+            //如果存在，直接返回，无需查询数据库
+            return R.success(dishDtoList);
+        }
+
+
         LambdaQueryWrapper<Dish> lqw = new LambdaQueryWrapper<>();
         //添加条件 ==> 只查询起售状态的菜品 包含排序
         lqw.eq(dish.getCategoryId() != null, Dish::getCategoryId, dish.getCategoryId())
@@ -150,7 +170,7 @@ public class DishController {
 
         List<Dish> list = dishService.list(lqw);
 
-        List<DishDto> dishDtoList = list.stream().map((item) -> {
+        dishDtoList = list.stream().map((item) -> {
             DishDto dishDto = new DishDto();
             //把普通属性拷贝到dishDto里面
             BeanUtils.copyProperties(item, dishDto);
@@ -171,6 +191,9 @@ public class DishController {
 
             return dishDto;
         }).collect(Collectors.toList());
+
+        //如果不存在，查询数据库，如果不存在，将查询的数据缓存进Redis,60分钟到期
+        redisTemplate.opsForValue().set(key,dishDtoList,60, TimeUnit.MINUTES);
 
 
         return R.success(dishDtoList);
