@@ -56,7 +56,7 @@ public class SetmealServiceImpl extends ServiceImpl<SetmealMapper, Setmeal> impl
         LambdaQueryWrapper<Setmeal> lqw = new LambdaQueryWrapper<>();
         lqw.in(Setmeal::getId,ids)
                 .eq(Setmeal::getStatus,1);
-        int count = this.count(lqw);
+        Long count = this.count(lqw);
 
         //不能删除，抛出异常信息
         if(count>0){

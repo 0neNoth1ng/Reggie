@@ -110,7 +110,7 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
         LambdaQueryWrapper<Dish> lqw = new LambdaQueryWrapper<>();
         lqw.in(Dish::getId,ids)
                 .eq(Dish::getStatus,1);
-        int count = this.count(lqw);
+        Long count = this.count(lqw);
 
         //不能删除，抛出异常信息
         if(count>0){
