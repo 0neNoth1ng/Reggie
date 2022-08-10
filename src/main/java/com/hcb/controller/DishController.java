@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -115,6 +116,12 @@ public class DishController {
     @PutMapping
     public R<String> update(@RequestBody DishDto dishDto) {
         dishService.updateWithFlavor(dishDto);
+
+        //修改了之后  清理  特定菜品的   缓存数据
+            //动态生成key
+        String key = "dish_" + dishDto.getCategoryId() + "_1";
+        redisTemplate.delete(key);
+
         return R.success("菜品信息更新成功");
     }
 
@@ -125,10 +132,16 @@ public class DishController {
     public R<String> statusUpdate(@PathVariable int status, Long ids[]) {
 
         for (Long id : ids) {
+
             Dish dish = dishService.getById(id);
             dish.setStatus(status);
             dishService.updateById(dish);
+
+            //停售起售同时 删除 缓存数据 ，避免前端页面失误
+            String key = "dish_" + dish.getCategoryId() + "_1";
+            redisTemplate.delete(key);
         }
+
         return R.success("状态修改成功");
     }
 
