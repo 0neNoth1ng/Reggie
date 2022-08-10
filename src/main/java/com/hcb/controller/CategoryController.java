@@ -7,6 +7,7 @@ import com.hcb.entity.Category;
 import com.hcb.service.CategoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,9 @@ public class CategoryController {
     @Autowired
     public CategoryService categoryService;
 
+    @Autowired
+    public RedisTemplate redisTemplate;
+
     /**
     * 新增分类
     * */
@@ -29,6 +33,12 @@ public class CategoryController {
     public R<String > save(@RequestBody Category category){
         log.info("category:{}",category);
         categoryService.save(category);
+
+        //修改了之后  清理  特定菜品的   缓存数据
+        //动态生成key
+        String key = "dish_" + category.getId() + "_1";
+        redisTemplate.delete(key);
+
         return R.success("新增分类成功！");
     }
 

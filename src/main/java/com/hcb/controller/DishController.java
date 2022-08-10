@@ -51,11 +51,18 @@ public class DishController {
     public R<String> saveDish(@RequestBody DishDto dishDto) {
         log.info(dishDto.toString());
         dishService.saveWithFlavor(dishDto);
+
+        //修改了之后  清理  特定菜品的   缓存数据
+        //动态生成key
+        String key = "dish_" + dishDto.getCategoryId() + "_1";
+        redisTemplate.delete(key);
+
         return R.success("新增菜品成功");
     }
 
     /**
      * 菜品的分页查询
+     * 这个方法主要是给后端使用，前端的请求方法在下面
      */
     @GetMapping("/page")
     public R<Page> page(int page, int pageSize, String name) {
@@ -156,6 +163,7 @@ public class DishController {
 
     /**
      * 在新建套餐页面时， 添加相应的 菜品 需要查询数据，从这里查
+     * 这里返回的数据可以给前端页面展示用
      */
     @GetMapping("/list")
     public R<List<DishDto>> get(Dish dish) {
