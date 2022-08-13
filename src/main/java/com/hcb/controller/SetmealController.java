@@ -14,6 +14,9 @@ import com.hcb.service.SetmealService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -47,16 +50,11 @@ public class SetmealController {
     /**
      * 新增套餐
      * */
+    @CacheEvict(value = "setmealCache", allEntries = true)
     @PostMapping
     public R<String > save(@RequestBody SetmealDto setmealDto){
         log.info("套餐信息：{}",setmealDto);
-
         setmealService.saveWithDish(setmealDto);
-
-        //修改了之后  清理  特定套餐的   缓存数据
-        //动态生成key
-        String key = "setmeal_" + setmealDto.getCategoryId() + "_1";
-        redisTemplate.delete(key);
         return R.success("新增套餐成功");
     }
 
@@ -119,6 +117,7 @@ public class SetmealController {
     /**
      * 起售 和 停售 状态的更新
      * */
+    @CacheEvict(value = "setmealCache", allEntries = true)
     @PostMapping("/status/{status}")
     public R<String> statusUpdate(@PathVariable int status, Long ids[]){
 
@@ -126,10 +125,6 @@ public class SetmealController {
             Setmeal setmeal = setmealService.getById(id);
             setmeal.setStatus(status);
             setmealService.updateById(setmeal);
-
-            //停售起售同时 删除 缓存数据 ，避免前端页面失误
-            String key = "setmeal_" + setmeal.getCategoryId() + "_1";
-            redisTemplate.delete(key);
         }
         return R.success("状态修改成功");
     }
@@ -162,33 +157,16 @@ public class SetmealController {
      * 根据条件查询套餐数据，在移动端展示
      * 这里返回的数据可以给前端页面展示用
      * */
+    @Cacheable(value = "setmealCache", key = "#setmeal.categoryId + '_' + #setmeal.status")
     @GetMapping("/list")
     public R<List<Setmeal>> list(Setmeal setmeal){
         List<Setmeal> list = null;
-
-        //获取分类id 作为redis 的key
-
         Long categoryId = setmeal.getCategoryId();
-
-        //动态生成key
-        String key = "setmeal_" + categoryId + "_" + setmeal.getStatus();
-
-        //先从Redis中获取缓存数据
-        list = (List<Setmeal>) redisTemplate.opsForValue().get(key);
-
-        if (list != null) {
-            //如果存在，直接返回，无需查询数据库
-            return R.success(list);
-        }
-
         LambdaQueryWrapper<Setmeal> lqw = new LambdaQueryWrapper<>();
         lqw.eq(setmeal.getCategoryId()!=null,Setmeal::getCategoryId,setmeal.getCategoryId())
                 .eq(Setmeal::getStatus,1)//只有起售的菜品才能展示出来
                 .orderByDesc(Setmeal::getUpdateTime);
         list = setmealService.list(lqw);
-
-        //如果不存在，查询数据库，如果不存在，将查询的数据缓存进Redis,60分钟到期
-        redisTemplate.opsForValue().set(key,list,60, TimeUnit.MINUTES);
 
         return R.success(list);
     }
